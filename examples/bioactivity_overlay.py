@@ -7,8 +7,8 @@ A Python tool for bioactivity-guided fractionation analysis.
 Overlays LC-MS/MS chromatograms with antioxidant activity data from 
 microfractionation experiments.
 
-Author: Functional Metabolomics Lab, UC Riverside
-Date: March 2026
+Author: Thapanee Pruksatrakul (Visiting Scholar) Functional Metabolomics Lab, UC Riverside
+Date: 15 April 2026
 License: MIT
 
 Requirements:
