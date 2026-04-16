@@ -3,8 +3,6 @@ Bioactivity-Chromatogram Overlay Tool
 
 A Python tool for **bioactivity-guided fractionation** analysis. Overlays LC-MS/MS chromatograms with antioxidant activity data from microfractionation experiments.
 
-![Bioactivity Overlay Example](quercetin_bioactivity_overlay.png)
-
 ## 🎯 Purpose
 
 This tool helps identify bioactive compounds by correlating:
