@@ -4,7 +4,7 @@
 
 A Python tool for **bioactivity-guided fractionation** analysis. Overlays LC-MS/MS chromatograms with antioxidant activity data from microfractionation experiments.
 
-![Bioactivity Overlay Example](examples/quercetin_overlay.png)
+![Bioactivity Overlay Example](quercetin_overlay_corrected.png)
 
 ## 🎯 Purpose
 
