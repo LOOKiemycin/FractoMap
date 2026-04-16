@@ -137,13 +137,10 @@ Fraction 43 (76.2% inhibition):
 
 ## Author
 Thapanee Pruksatrakul
-Visiting scholar, Functional Metabolomics Laboratory  
+(Visiting scholar) Functional Metabolomics Laboratory  
 University of California, Riverside
 
 ## 📄 License
 
 MIT License - feel free to use and modify!
-
----
-
 Made with ❤️ for metabolomics research
