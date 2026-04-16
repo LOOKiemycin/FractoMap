@@ -145,7 +145,7 @@ if len(active_compounds) > 0:
             print(f"    m/z {row['m/z']:.4f} (intensity: {row['Intensity']:.0f})")
 
 # =============================================================================
-# BONUS: Create EIC overlay for Quercetin identification
+# Create EIC overlay for Quercetin identification
 # =============================================================================
 
 # Quercetin [M-H]- = 301.0348
