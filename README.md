@@ -214,7 +214,7 @@ Fraction 43 (76.2% inhibition):
 1. Chaves N, et al. (2020) Quantification of the Antioxidant Activity of Plant Extracts. *Antioxidants* 9(1):76.
 2. Re R, et al. (1999) Antioxidant Activity Applying an Improved ABTS Radical Cation Decolorization Assay. *Free Radical Biology and Medicine* 26(9):1231–37.
 
-## 👩‍🔬 Author
+## 🥷 Author
 
 **Thapanee Pruksatrakul**  
 Visiting Scholar, Functional Metabolomics Laboratory  
