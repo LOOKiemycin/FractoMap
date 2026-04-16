@@ -1,7 +1,10 @@
 # FractoMap
-Bioactivity-Chromatogram Overlay Tool
+
+**Bioactivity-Chromatogram Overlay Tool**
 
 A Python tool for **bioactivity-guided fractionation** analysis. Overlays LC-MS/MS chromatograms with antioxidant activity data from microfractionation experiments.
+
+![Bioactivity Overlay Example](examples/quercetin_overlay.png)
 
 ## 🎯 Purpose
 
@@ -20,10 +23,34 @@ Perfect for **functional metabolomics** and **natural product discovery**!
 - 📁 **Multiple input formats**: mzML, CSV, Excel, numpy arrays
 - 📤 **Export results**: CSV/Excel with RT-fraction-activity mapping
 
+## 📦 Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/FractoMap.git
+cd FractoMap
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+## 🚀 Quick Start
+
+### Command Line
+
+```bash
+python fractomap/overlay.py \
+    --mzml data/sample.mzML \
+    --inhibition data/plate_data.xlsx \
+    --output results/overlay.png \
+    --rt-range 1 11 \
+    --threshold 50
+```
+
 ### Python API
 
 ```python
-from bioactivity_overlay import BioactivityOverlay
+from fractomap import BioactivityOverlay
 
 # Initialize
 overlay = BioactivityOverlay(
@@ -34,19 +61,37 @@ overlay = BioactivityOverlay(
 )
 
 # Load data
-overlay.load_mzml("data.mzML", chromatogram_type="TIC")
-overlay.load_inhibition_data("inhibition.csv")
+overlay.load_mzml("data/sample.mzML", chromatogram_type="TIC")
+overlay.load_inhibition_data("data/plate_data.xlsx")
 
 # Create overlay plot
 overlay.plot_overlay(
-    output_path="overlay.png",
+    output_path="results/overlay.png",
     title="My Bioactivity Analysis",
     rt_range=(1, 11),
     activity_threshold=50.0
 )
 
 # Export results
-overlay.export_results("results.csv")
+overlay.export_results("results/fractions.csv")
+```
+
+### Load from Excel Template
+
+```python
+from fractomap import BioactivityOverlay, load_plate_data
+
+# Load plate reader data from Excel
+plate_data, params, sample_info = load_plate_data("data/ABTS_plate.xlsx")
+
+# Calculate inhibition
+inhibition, control_avg = calculate_inhibition(plate_data)
+
+# Create overlay
+overlay = BioactivityOverlay(**params)
+overlay.load_mzml("data/sample.mzML")
+overlay.inhibition = inhibition
+overlay.plot_overlay("results/overlay.png")
 ```
 
 ## ⚠️ Important: Fraction Offset Correction
@@ -72,7 +117,11 @@ The tool uses **serpentine pattern** for 96-well plate mapping:
 Row A: 1  → 2  → 3  → 4  → 5  → 6  → 7  → 8  → 9  → 10 → 11 → 12
 Row B: 24 ← 23 ← 22 ← 21 ← 20 ← 19 ← 18 ← 17 ← 16 ← 15 ← 14 ← 13
 Row C: 25 → 26 → 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36
-...
+Row D: 48 ← 47 ← 46 ← 45 ← 44 ← 43 ← 42 ← 41 ← 40 ← 39 ← 38 ← 37
+Row E: 49 → 50 → 51 → 52 → 53 → 54 → 55 → 56 → 57 → 58 → 59 → 60
+Row F: 72 ← 71 ← 70 ← 69 ← 68 ← 67 ← 66 ← 65 ← 64 ← 63 ← 62 ← 61
+Row G: 73 → 74 → 75 → 76 → 77 → 78 → 79 → 80 → 81 → 82 → 83 → 84
+Row H: 96 ← 95 ← 94 ← 93 ← 92 ← 91 ← 90 ← 89 ← 88 ← 87 ← 86 ← 85
 ```
 
 - **Wells 1-86**: Fractions (collected every 7 seconds from 1-11 min)
@@ -92,14 +141,14 @@ Row C: 25 → 26 → 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34 → 35 
 ```
 ┌─────────────────┐     ┌─────────────────┐
 │  LC-MS/MS with  │     │   96-well plate │
-│ microfractionation│     │  bioassay       │
+│ microfractionation│   │  bioassay       │
 │     (mzML)      │     │  (ABTS/DPPH)    │
 └────────┬────────┘     └────────┬────────┘
          │                       │
          ▼                       ▼
 ┌─────────────────────────────────────────┐
-│      Bioactivity-Chromatogram Overlay   │
-│              (this tool)                │
+│            FractoMap                    │
+│   Bioactivity-Chromatogram Overlay      │
 └────────────────────┬────────────────────┘
                      │
          ┌───────────┴───────────┐
@@ -110,21 +159,51 @@ Row C: 25 → 26 → 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34 → 35 
 └─────────────────┘     └─────────────────┘
 ```
 
-## 📁 Example Files
+## 📁 Project Structure
 
-- `bioactivity_overlay.py` - Main module
-- `example_quercetin.py` - Example with Quercetin standard
-- `requirements.txt` - Python dependencies
+```
+FractoMap/
+├── README.md
+├── LICENSE
+├── requirements.txt
+│
+├── fractomap/                    # Main package
+│   ├── __init__.py
+│   ├── overlay.py                # BioactivityOverlay class
+│   ├── plate_reader.py           # Plate data processing
+│   └── utils.py                  # Helper functions
+│
+├── data/                         # Sample data
+│   ├── standards/
+│   │   └── quercetin/
+│   │       ├── Quercetin_Neg_FC.mzML
+│   │       └── ABTS_6min.xlsx
+│   └── wine_lees/
+│       ├── durif/
+│       └── cabernet_sauvignon/
+│
+├── examples/                     # Example scripts
+│   ├── example_quercetin.py
+│   └── example_from_excel.py
+│
+└── docs/                         # Documentation
+    └── SOP_Microfractionation.md
+```
 
 ## 🧪 Example Output
 
 Using Quercetin standard (2 mg/mL, ABTS assay 6 min):
 
 ```
-Compounds in Active Fractions:
+📊 Analysis Results:
+   TIC peak: 5.82 min
+   Max inhibition: F43 at RT 5.84 min (76.2%)
+   Alignment: ΔRT = 0.02 min ✓
+
+🔬 Compounds in Active Fractions:
 
 Fraction 43 (76.2% inhibition):
-  RT: 6.01 min
+  RT: 5.84 min
   Top m/z values:
     m/z 301.0352 (Quercetin [M-H]⁻)
     m/z 603.0786 (Quercetin dimer [2M-H]⁻)
@@ -135,12 +214,16 @@ Fraction 43 (76.2% inhibition):
 1. Chaves N, et al. (2020) Quantification of the Antioxidant Activity of Plant Extracts. *Antioxidants* 9(1):76.
 2. Re R, et al. (1999) Antioxidant Activity Applying an Improved ABTS Radical Cation Decolorization Assay. *Free Radical Biology and Medicine* 26(9):1231–37.
 
-## Author
-Thapanee Pruksatrakul
-(Visiting scholar) Functional Metabolomics Laboratory  
+## 👩‍🔬 Author
+
+**Thapanee Pruksatrakul**  
+Visiting Scholar, Functional Metabolomics Laboratory  
 University of California, Riverside
 
 ## 📄 License
 
 MIT License - feel free to use and modify!
+
+---
+
 Made with ❤️ for metabolomics research
