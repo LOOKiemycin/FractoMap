@@ -196,7 +196,7 @@ Using Quercetin standard (2 mg/mL, ABTS assay 6 min):
 📊 Analysis Results:
    TIC peak: 5.82 min
    Max inhibition: F43 at RT 5.84 min (76.2%)
-   Alignment: ΔRT = 0.02 min ✓
+   Alignment: ΔRT = 0.02 min
 
 🔬 Compounds in Active Fractions:
 
