@@ -183,11 +183,9 @@ FractoMap/
 │       └── cabernet_sauvignon/
 │
 ├── examples/                     # Example scripts
-│   ├── example_quercetin.py
-│   └── example_from_excel.py
-│
-└── docs/                         # Documentation
-    └── SOP_Microfractionation.md
+    ├── example_quercetin.py
+    └── example_from_excel.py
+
 ```
 
 ## 🧪 Example Output
