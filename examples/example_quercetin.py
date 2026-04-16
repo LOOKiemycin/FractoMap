@@ -163,7 +163,7 @@ fig2 = overlay.plot_eic_overlay(
     rt_range=(1, 11)
 )
 
-print("\n✅ Analysis complete!")
+print("\n Analysis complete!")
 print("Output files:")
 print("  - quercetin_bioactivity_overlay.png")
 print("  - quercetin_eic_overlay.png") 
