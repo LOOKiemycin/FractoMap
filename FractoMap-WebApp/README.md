@@ -57,8 +57,8 @@ streamlit run app.py
 4. Click **Calculate Inhibition**
 5. View results in **Results** and **Overlay** pages
 
-## 👩‍🔬 Author
+## 🥷 Author
 
 Thapanee Pruksatrakul  
+Visiting scholar at
 Functional Metabolomics Lab, UC Riverside  
-JGSEE, King Mongkut's University of Technology Thonburi
