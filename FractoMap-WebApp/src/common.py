@@ -153,21 +153,80 @@ def parse_mzml(content: str) -> dict:
         st.error(f"Error parsing mzML: {e}")
         return {'tic': [], 'bpc': []}
 
+def is_numeric(val):
+    """Check if value is numeric"""
+    if pd.isna(val):
+        return False
+    if isinstance(val, (int, float, np.integer, np.floating)):
+        return True
+    if isinstance(val, str):
+        try:
+            float(val)
+            return True
+        except:
+            return False
+    return False
+
+def to_float(val):
+    """Convert value to float safely"""
+    if pd.isna(val):
+        return 0.0
+    if isinstance(val, (int, float, np.integer, np.floating)):
+        return float(val)
+    if isinstance(val, str):
+        try:
+            return float(val)
+        except:
+            return 0.0
+    return 0.0
+
 def parse_plate_excel(file) -> list:
-    """Parse 96-well plate Excel file and extract 8x12 matrix"""
+    """
+    Parse 96-well plate Excel file and extract 8x12 matrix.
+    Supports multiple formats:
+    - Simple 8x12 numeric matrix
+    - Matrix with row labels (A-H) in first column
+    - Matrix with header rows above data
+    """
     try:
         if file.name.endswith('.csv'):
             df = pd.read_csv(file, header=None)
         else:
             df = pd.read_excel(file, header=None)
         
-        # Find rows with 12 numeric values
         matrix = []
+        
+        # Scan through all rows to find 8x12 numeric block
         for i in range(len(df)):
-            row = df.iloc[i].values[:12]
-            numeric_count = sum(1 for v in row if pd.notna(v) and isinstance(v, (int, float)))
-            if numeric_count >= 10:
-                matrix.append([float(v) if pd.notna(v) else 0 for v in row])
+            row = df.iloc[i].values
+            
+            # Try to find 12 consecutive numeric values
+            numeric_values = []
+            
+            # Method 1: Check if first column is row label (A-H)
+            first_val = str(row[0]).strip().upper() if pd.notna(row[0]) else ''
+            
+            if first_val in ROWS:
+                # Row label in first column, data in columns 1-12
+                for j in range(1, min(13, len(row))):
+                    if is_numeric(row[j]):
+                        numeric_values.append(to_float(row[j]))
+            else:
+                # No row label, check first 12 columns
+                for j in range(min(12, len(row))):
+                    if is_numeric(row[j]):
+                        numeric_values.append(to_float(row[j]))
+            
+            # If we found 12 numeric values, add to matrix
+            if len(numeric_values) == 12:
+                matrix.append(numeric_values)
+                if len(matrix) == 8:
+                    break
+            # If we found 10-11 values (some missing), pad with zeros
+            elif len(numeric_values) >= 10 and len(matrix) < 8:
+                while len(numeric_values) < 12:
+                    numeric_values.append(0.0)
+                matrix.append(numeric_values)
                 if len(matrix) == 8:
                     break
         
@@ -175,6 +234,7 @@ def parse_plate_excel(file) -> list:
             return matrix
         else:
             return None
+            
     except Exception as e:
         st.error(f"Error parsing Excel: {e}")
         return None
