@@ -2,10 +2,6 @@
 
 A Streamlit web application for bioactivity-guided microfractionation analysis.
 
-## 🌐 Live Demo
-
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://fractomap.streamlit.app/)
-
 ## 📁 Structure
 
 ```
