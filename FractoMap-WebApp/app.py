@@ -1,239 +1,225 @@
+"""
+FractoMap - Bioactivity-Guided Microfractionation Analysis
+Single-file Streamlit App
+"""
+
 import streamlit as st
-from pathlib import Path
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import base64
+import zlib
+import struct
+import xml.etree.ElementTree as ET
 
-# Page configuration
-st.set_page_config(
-    page_title="FractoMap",
-    page_icon="🧪",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        "About": "# FractoMap\nBioactivity-guided microfractionation analysis tool.\n\nDeveloped by Thapanee Pruksatrakul\n\nFunctional Metabolomics Lab, UC Riverside"
-    }
-)
+# Page Config
+st.set_page_config(page_title="FractoMap", page_icon="🧪", layout="wide")
 
-# Custom CSS for FBMN-STATS style
-st.markdown("""
-<style>
-    /* Main header styling */
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #1E3A5F;
-        margin-bottom: 0.5rem;
-    }
-    
-    /* Subheader styling */
-    .sub-header {
-        font-size: 1.1rem;
-        color: #666;
-        margin-bottom: 2rem;
-    }
-    
-    /* Card styling */
-    .info-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        color: white;
-        margin-bottom: 1rem;
-    }
-    
-    /* Feature box */
-    .feature-box {
-        background: #f8f9fa;
-        padding: 1.2rem;
-        border-radius: 8px;
-        border-left: 4px solid #667eea;
-        margin-bottom: 1rem;
-    }
-    
-    /* Sidebar styling */
-    [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
-    }
-    
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5rem 2rem;
-        font-weight: 500;
-    }
-    
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-    }
-</style>
-""", unsafe_allow_html=True)
+# Constants
+ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 
-# Sidebar logo and info
+def get_serpentine_mapping():
+    mapping = {}
+    frac = 1
+    for r in range(8):
+        if r % 2 == 0:
+            for c in range(12):
+                mapping[frac] = {'row': r, 'col': c, 'well': f"{ROWS[r]}{c+1}"}
+                frac += 1
+        else:
+            for c in range(11, -1, -1):
+                mapping[frac] = {'row': r, 'col': c, 'well': f"{ROWS[r]}{c+1}"}
+                frac += 1
+    return mapping
+
+SERPENTINE = get_serpentine_mapping()
+
+# Helper Functions
+def decode_binary(base64_string, is_64bit=True, is_zlib=False):
+    decoded = base64.b64decode(base64_string)
+    if is_zlib:
+        try: decoded = zlib.decompress(decoded)
+        except: pass
+    if is_64bit:
+        return struct.unpack(f'<{len(decoded)//8}d', decoded)
+    return struct.unpack(f'<{len(decoded)//4}f', decoded)
+
+def parse_mzml(content):
+    try:
+        root = ET.fromstring(content)
+        result = {'tic': [], 'bpc': []}
+        for elem in root.iter():
+            if 'chromatogram' in elem.tag.lower():
+                chrom_id = elem.get('id', '').lower()
+                time_array, intensity_array = None, None
+                is_64bit, is_zlib = True, False
+                for ba in elem.iter():
+                    if 'binaryDataArray' in ba.tag:
+                        is_time, is_int = False, False
+                        for cv in ba.iter():
+                            if 'cvParam' in cv.tag:
+                                n = cv.get('name', '').lower()
+                                if '64-bit' in n: is_64bit = True
+                                elif '32-bit' in n: is_64bit = False
+                                if 'zlib' in n: is_zlib = True
+                                if 'time array' in n: is_time = True
+                                if 'intensity array' in n: is_int = True
+                        for b in ba.iter():
+                            if 'binary' in b.tag.lower() and b.text:
+                                d = decode_binary(b.text.strip(), is_64bit, is_zlib)
+                                if is_time: time_array = d
+                                elif is_int: intensity_array = d
+                if time_array and intensity_array:
+                    times = [t/60 if t > 100 else t for t in time_array]
+                    data = list(zip(times, intensity_array))
+                    if 'tic' in chrom_id or 'total' in chrom_id: result['tic'] = data
+                    elif 'bpc' in chrom_id or 'base' in chrom_id: result['bpc'] = data
+                    elif not result['tic']: result['tic'] = data
+        return result
+    except Exception as e:
+        st.error(f"Error parsing mzML: {e}")
+        return {'tic': [], 'bpc': []}
+
+def parse_plate_excel(file):
+    try:
+        df = pd.read_csv(file, header=None) if file.name.endswith('.csv') else pd.read_excel(file, header=None)
+        matrix = []
+        for i in range(len(df)):
+            row = df.iloc[i].values
+            nums = []
+            start = 1 if (len(row) > 0 and isinstance(row[0], str) and row[0].strip().upper() in ROWS) else 0
+            for j in range(start, min(start+12, len(row))):
+                if pd.notna(row[j]):
+                    try: nums.append(float(row[j]))
+                    except: pass
+            if len(nums) >= 10:
+                while len(nums) < 12: nums.append(0.0)
+                matrix.append(nums[:12])
+                if len(matrix) == 8: break
+        return matrix if len(matrix) == 8 else None
+    except Exception as e:
+        st.error(f"Error: {e}")
+        return None
+
+def calculate_inhibition(plate_data, params):
+    start, interval, offset = params['start'], params['interval'], params['offset']
+    ctrl = [plate_data[SERPENTINE[f]['row']][SERPENTINE[f]['col']] for f in range(87, 97)]
+    ctrl_avg = np.mean(ctrl)
+    results = []
+    for f in range(1, 87):
+        r, c = SERPENTINE[f]['row'], SERPENTINE[f]['col']
+        abs_val = plate_data[r][c]
+        inh = max(0, (1 - abs_val / ctrl_avg) * 100)
+        rt = start + (f - 1 + 0.5 + offset) * (interval / 60)
+        act = 'Strong' if inh > 75 else 'Moderate' if inh > 50 else 'Weak' if inh > 25 else 'Inactive'
+        results.append({'Fraction': f, 'Well': SERPENTINE[f]['well'], 'RT (min)': round(rt, 3),
+                       'Absorbance': round(abs_val, 4), '% Inhibition': round(inh, 1), 'Activity': act})
+    return pd.DataFrame(results), ctrl_avg
+
+def generate_demo():
+    tic = [(rt, 1e6 + np.random.random()*1e5 + 8e6*np.exp(-((rt-5.8)/0.15)**2) + 3e6*np.exp(-((rt-4.5)/0.2)**2)) 
+           for rt in np.arange(0, 12, 0.02)]
+    return {'tic': tic, 'bpc': [(t, i*0.5) for t, i in tic]}
+
+def get_color(inh):
+    if inh > 75: return '#1D9E75'
+    elif inh > 50: return '#EF9F27'
+    elif inh > 25: return '#F5A623'
+    return '#E24B4A'
+
+# Session State
+for k, v in [('plate', None), ('chrom', {'tic': [], 'bpc': []}), ('df', None), ('ctrl', None)]:
+    if k not in st.session_state: st.session_state[k] = v
+
+# Sidebar
 with st.sidebar:
     st.markdown("# 🧪 FractoMap")
-    st.markdown("**Bioactivity-Chromatogram Overlay**")
     st.markdown("---")
-    
-    st.markdown("""
-    ### 📚 Navigation
-    Use the pages in the sidebar to:
-    1. **Upload Data** - Load plate & mzML files
-    2. **Plate View** - Visualize 96-well plate
-    3. **Results** - View inhibition data
-    4. **Overlay** - Chromatogram overlay
-    """)
+    start = st.number_input("Collection start (min)", value=1.0, step=0.1)
+    interval = st.number_input("Interval (sec)", value=7, step=1)
+    offset = st.number_input("Fraction offset", value=-1, step=1)
+    params = {'start': start, 'interval': interval, 'offset': offset}
+    st.markdown("---")
+    st.markdown("[GitHub](https://github.com/LOOKiemycin/FractoMap)")
+
+# Main
+st.title("🧪 FractoMap")
+tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload", "🧫 Plate", "📊 Results", "📈 Overlay"])
+
+with tab1:
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("📋 Plate Data")
+        pf = st.file_uploader("Upload Excel (8×12)", type=['xlsx', 'xls', 'csv'])
+        if pf:
+            p = parse_plate_excel(pf)
+            if p: st.session_state.plate = p; st.success("✅ Loaded")
+            else: st.error("❌ Invalid format")
+    with c2:
+        st.subheader("📈 Chromatogram")
+        cf = st.file_uploader("Upload mzML/CSV", type=['mzML', 'mzml', 'csv'])
+        if cf:
+            if cf.name.lower().endswith('.mzml'):
+                st.session_state.chrom = parse_mzml(cf.read().decode('utf-8'))
+            else:
+                d = pd.read_csv(cf)
+                st.session_state.chrom['tic'] = list(zip(d.iloc[:,0], d.iloc[:,1]))
+            st.success(f"✅ {len(st.session_state.chrom.get('tic',[]))} points")
+        if st.button("🎲 Demo Data"):
+            st.session_state.chrom = generate_demo()
+            st.success("✅ Demo loaded")
     
     st.markdown("---")
-    st.markdown("""
-    ### 🔗 Links
-    - [GitHub Repository](https://github.com/LOOKiemycin/FractoMap)
-    - [Documentation](https://github.com/LOOKiemycin/FractoMap#readme)
-    """)
-    
-    st.markdown("---")
-    st.markdown("""
-    <small>
-    Developed by<br>
-    <b>Thapanee Pruksatrakul</b><br>
-    Functional Metabolomics Lab<br>
-    UC Riverside
-    </small>
-    """, unsafe_allow_html=True)
+    if st.button("🧮 Calculate", type="primary", use_container_width=True):
+        if st.session_state.plate:
+            df, ctrl = calculate_inhibition(st.session_state.plate, params)
+            st.session_state.df, st.session_state.ctrl = df, ctrl
+            st.success("✅ Done!")
+            c1,c2,c3,c4 = st.columns(4)
+            c1.metric("Control", f"{ctrl:.4f}")
+            c2.metric("Max", f"{df['% Inhibition'].max():.1f}%")
+            c3.metric("Active", len(df[df['% Inhibition']>50]))
+            c4.metric("Best", f"F{df.loc[df['% Inhibition'].idxmax(),'Fraction']}")
+        else: st.error("❌ Upload plate first")
 
-# Main page content
-st.markdown('<p class="main-header">🧪 FractoMap</p>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Bioactivity-Guided Microfractionation Analysis Tool</p>', unsafe_allow_html=True)
+with tab2:
+    if st.session_state.plate:
+        fig = go.Figure(go.Heatmap(z=np.array(st.session_state.plate), x=list(range(1,13)), y=ROWS, colorscale='RdYlGn_r'))
+        fig.update_layout(title="Plate Heatmap", yaxis=dict(autorange='reversed'), height=350)
+        st.plotly_chart(fig, use_container_width=True)
+    else: st.warning("Upload plate first")
 
-# Introduction
-st.markdown("""
-<div class="info-card">
-    <h3>Welcome to FractoMap!</h3>
-    <p>Overlay bioactivity data (ABTS/DPPH antioxidant assays) with LC-MS chromatograms 
-    for compound identification in natural product research.</p>
-</div>
-""", unsafe_allow_html=True)
+with tab3:
+    if st.session_state.df is not None:
+        df = st.session_state.df
+        c1,c2,c3,c4 = st.columns(4)
+        c1.metric("Control", f"{st.session_state.ctrl:.4f}")
+        c2.metric("Max", f"{df['% Inhibition'].max():.1f}%")
+        c3.metric("Active", len(df[df['% Inhibition']>50]))
+        c4.metric("Best", f"F{df.loc[df['% Inhibition'].idxmax(),'Fraction']}")
+        
+        fig = go.Figure(go.Bar(x=df['Fraction'], y=df['% Inhibition'], marker_color=[get_color(i) for i in df['% Inhibition']]))
+        fig.update_layout(yaxis_range=[0,100], height=300)
+        fig.add_hline(y=50, line_dash="dash")
+        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(df, use_container_width=True, height=250)
+        st.download_button("📥 CSV", df.to_csv(index=False), "results.csv")
+    else: st.warning("Calculate first")
 
-# Features section
-st.markdown("## ✨ Features")
+with tab4:
+    chrom_type = st.selectbox("Type", ["TIC", "BPC"])
+    df, chrom = st.session_state.df, st.session_state.chrom.get(chrom_type.lower(), [])
+    if df is not None and chrom:
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Scatter(x=[p[0] for p in chrom], y=[p[1] for p in chrom], name=chrom_type, line=dict(color='#2196F3')), secondary_y=True)
+        fig.add_trace(go.Bar(x=df['RT (min)'], y=df['% Inhibition'], marker_color=[get_color(i) for i in df['% Inhibition']], opacity=0.7, width=0.08, name='Inhibition'), secondary_y=False)
+        fig.update_layout(title=f"Overlay with {chrom_type}", xaxis_title="RT (min)", height=450)
+        fig.update_yaxes(title_text="% Inhibition", range=[0,100], secondary_y=False)
+        fig.update_yaxes(title_text="Intensity", secondary_y=True)
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("🔵 Chromatogram | 🟢 Strong | 🟡 Moderate | 🔴 Inactive")
+    else: st.warning("Upload data and calculate first")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    st.markdown("""
-    <div class="feature-box">
-        <h4>📋 Data Import</h4>
-        <ul>
-            <li>96-well plate Excel files</li>
-            <li>mzML chromatogram files</li>
-            <li>Automatic serpentine mapping</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-box">
-        <h4>🧮 Calculations</h4>
-        <ul>
-            <li>% Inhibition from absorbance</li>
-            <li>Automatic control averaging</li>
-            <li>Activity classification</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div class="feature-box">
-        <h4>📈 Visualization</h4>
-        <ul>
-            <li>96-well plate heatmap</li>
-            <li>TIC/BPC chromatograms</li>
-            <li>Bioactivity overlay plots</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="feature-box">
-        <h4>📥 Export</h4>
-        <ul>
-            <li>Results as CSV</li>
-            <li>Interactive plots</li>
-            <li>Publication-ready figures</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Quick start
-st.markdown("## 🚀 Quick Start")
-
-st.markdown("""
-1. **Upload Data** → Go to the Upload page and load your plate data (Excel) and chromatogram (mzML)
-2. **Adjust Parameters** → Set collection start time, interval, and fraction offset
-3. **View Results** → Check the Results page for inhibition calculations
-4. **Generate Overlay** → Create bioactivity-chromatogram overlay plots
-""")
-
-# Workflow diagram
-st.markdown("## 📊 Workflow")
-
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.markdown("""
-    <div style="text-align: center; padding: 1rem; background: #e3f2fd; border-radius: 8px;">
-        <h1 style="margin: 0;">📤</h1>
-        <p><b>1. Upload</b></p>
-        <small>Plate + mzML</small>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div style="text-align: center; padding: 1rem; background: #e8f5e9; border-radius: 8px;">
-        <h1 style="margin: 0;">⚙️</h1>
-        <p><b>2. Configure</b></p>
-        <small>Parameters</small>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown("""
-    <div style="text-align: center; padding: 1rem; background: #fff3e0; border-radius: 8px;">
-        <h1 style="margin: 0;">🧮</h1>
-        <p><b>3. Calculate</b></p>
-        <small>% Inhibition</small>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col4:
-    st.markdown("""
-    <div style="text-align: center; padding: 1rem; background: #fce4ec; border-radius: 8px;">
-        <h1 style="margin: 0;">📈</h1>
-        <p><b>4. Overlay</b></p>
-        <small>Visualize</small>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Citation
 st.markdown("---")
-st.markdown("## 📖 Citation")
-st.code("""
-Pruksatrakul, T. (2024). FractoMap: A tool for bioactivity-guided 
-microfractionation analysis. GitHub. 
-https://github.com/LOOKiemycin/FractoMap
-""", language=None)
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #666; font-size: 0.9rem;">
-    <p>FractoMap v1.0 | Developed by Thapanee Pruksatrakul</p>
-    <p>Functional Metabolomics Lab, UC Riverside | JGSEE, KMUTT</p>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("**FractoMap** | [GitHub](https://github.com/LOOKiemycin/FractoMap)")
