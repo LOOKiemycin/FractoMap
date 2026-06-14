@@ -208,17 +208,30 @@ with tab3:
     else: st.warning("Calculate first")
 
 with tab4:
-    chrom_type = st.selectbox("Type", ["TIC", "BPC"])
+    c1, c2, c3 = st.columns([1,1,2])
+    with c1: chrom_type = st.selectbox("Type", ["TIC", "BPC"])
+    with c2: bar_width = st.slider("Bar width", 0.05, 0.3, 0.12, 0.01)
+    
     df, chrom = st.session_state.df, st.session_state.chrom.get(chrom_type.lower(), [])
     if df is not None and chrom:
         fig = make_subplots(specs=[[{"secondary_y": True}]])
-        fig.add_trace(go.Scatter(x=[p[0] for p in chrom], y=[p[1] for p in chrom], name=chrom_type, line=dict(color='#2196F3')), secondary_y=True)
-        fig.add_trace(go.Bar(x=df['RT (min)'], y=df['% Inhibition'], marker_color=[get_color(i) for i in df['% Inhibition']], opacity=0.7, width=0.08, name='Inhibition'), secondary_y=False)
-        fig.update_layout(title=f"Overlay with {chrom_type}", xaxis_title="RT (min)", height=450)
+        # Chromatogram - thinner line, behind bars
+        fig.add_trace(go.Scatter(x=[p[0] for p in chrom], y=[p[1] for p in chrom], name=chrom_type, 
+                                  line=dict(color='#2196F3', width=1), fill='tozeroy', fillcolor='rgba(33,150,243,0.15)'), secondary_y=True)
+        # Bars - wider, more visible
+        fig.add_trace(go.Bar(x=df['RT (min)'], y=df['% Inhibition'], marker_color=[get_color(i) for i in df['% Inhibition']], 
+                             opacity=0.9, width=bar_width, name='Inhibition', marker_line_width=0), secondary_y=False)
+        fig.update_layout(title=f"Overlay with {chrom_type}", xaxis_title="RT (min)", height=500, bargap=0,
+                         legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99))
         fig.update_yaxes(title_text="% Inhibition", range=[0,100], secondary_y=False)
         fig.update_yaxes(title_text="Intensity", secondary_y=True)
         st.plotly_chart(fig, use_container_width=True)
-        st.markdown("🔵 Chromatogram | 🟢 Strong | 🟡 Moderate | 🔴 Inactive")
+        st.markdown("🔵 Chromatogram (area) | 🟢 Strong >75% | 🟡 Moderate 50-75% | 🔴 Inactive <50%")
+        
+        # Show active fractions
+        active = df[df['% Inhibition'] > 50]
+        if len(active) > 0:
+            st.success(f"**Active fractions:** {', '.join([f'F{f}' for f in active['Fraction'].values])} (RT {active['RT (min)'].min():.2f}-{active['RT (min)'].max():.2f} min)")
     else: st.warning("Upload data and calculate first")
 
 st.markdown("---")
