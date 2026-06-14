@@ -215,18 +215,52 @@ with tab4:
     df, chrom = st.session_state.df, st.session_state.chrom.get(chrom_type.lower(), [])
     if df is not None and chrom:
         fig = make_subplots(specs=[[{"secondary_y": True}]])
-        # Chromatogram - thinner line, behind bars
-        fig.add_trace(go.Scatter(x=[p[0] for p in chrom], y=[p[1] for p in chrom], name=chrom_type, 
-                                  line=dict(color='#2196F3', width=1), fill='tozeroy', fillcolor='rgba(33,150,243,0.15)'), secondary_y=True)
-        # Bars - wider, more visible
-        fig.add_trace(go.Bar(x=df['RT (min)'], y=df['% Inhibition'], marker_color=[get_color(i) for i in df['% Inhibition']], 
-                             opacity=0.9, width=bar_width, name='Inhibition', marker_line_width=0), secondary_y=False)
-        fig.update_layout(title=f"Overlay with {chrom_type}", xaxis_title="RT (min)", height=500, bargap=0,
-                         legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99))
-        fig.update_yaxes(title_text="% Inhibition", range=[0,100], secondary_y=False)
-        fig.update_yaxes(title_text="Intensity", secondary_y=True)
+        
+        # TIC - light purple fill like reference
+        fig.add_trace(go.Scatter(
+            x=[p[0] for p in chrom], y=[p[1] for p in chrom], 
+            name=chrom_type, 
+            line=dict(color='rgba(100,100,180,0.8)', width=1.5), 
+            fill='tozeroy', 
+            fillcolor='rgba(180,180,220,0.4)'
+        ), secondary_y=True)
+        
+        # Separate traces for each activity level (for legend)
+        for act, color, label in [
+            ('Strong', '#2E8B57', 'Strong (>75%)'),
+            ('Moderate', '#FFD700', 'Moderate (50-75%)'),
+            ('Weak', '#FF8C00', 'Weak (25-50%)'),
+            ('Inactive', '#DC143C', 'Inactive (<25%)')
+        ]:
+            subset = df[df['Activity'] == act]
+            if len(subset) > 0:
+                fig.add_trace(go.Bar(
+                    x=subset['RT (min)'], y=subset['% Inhibition'],
+                    name=label, marker_color=color, opacity=0.85, width=bar_width,
+                    text=[f"F{f}" if inh > 50 else "" for f, inh in zip(subset['Fraction'], subset['% Inhibition'])],
+                    textposition='outside', textfont=dict(size=9, color='#333')
+                ), secondary_y=False)
+        
+        # 50% threshold line
+        fig.add_hline(y=50, line_dash="dash", line_color="crimson", line_width=1.5, 
+                      annotation_text="50%", annotation_position="right", secondary_y=False)
+        
+        fig.update_layout(
+            title=dict(text=f"<b>Bioactivity Overlay with {chrom_type}</b><br><sup>Offset = {params['offset']} fraction (~{abs(params['offset'])*7} sec dead volume)</sup>", 
+                      x=0.5, xanchor='center'),
+            xaxis_title="Retention Time (min)",
+            height=550, bargap=0, barmode='overlay',
+            legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99, bgcolor='rgba(255,255,255,0.9)', 
+                       bordercolor='#ccc', borderwidth=1),
+            plot_bgcolor='white'
+        )
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#eee', zeroline=False)
+        fig.update_yaxes(title_text="% Inhibition (ABTS)", range=[0,105], showgrid=True, gridcolor='#eee', 
+                        title_font=dict(color='#2E8B57'), tickfont=dict(color='#2E8B57'), secondary_y=False)
+        fig.update_yaxes(title_text=f"{chrom_type} Intensity", showgrid=False,
+                        title_font=dict(color='#6464B4'), tickfont=dict(color='#6464B4'), secondary_y=True)
+        
         st.plotly_chart(fig, use_container_width=True)
-        st.markdown("🔵 Chromatogram (area) | 🟢 Strong >75% | 🟡 Moderate 50-75% | 🔴 Inactive <50%")
         
         # Show active fractions
         active = df[df['% Inhibition'] > 50]
