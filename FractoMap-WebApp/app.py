@@ -226,11 +226,41 @@ def get_color(inh):
 for k, v in [('plate', None), ('chrom', {'tic': [], 'bpc': []}), ('df', None), ('ctrl', None)]:
     if k not in st.session_state: st.session_state[k] = v
 
-# Header Banner
+# Header Banner with custom icon
 st.markdown("""
 <div class="header-banner">
-    <h1>🧪 FractoMap</h1>
-    <p>Bioactivity-guided microfractionation analysis with LC-MS overlay</p>
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="background: rgba(255,255,255,0.2); border-radius: 12px; padding: 10px; display: flex; align-items: center; justify-content: center;">
+            <svg width="36" height="36" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Flask body -->
+                <path d="M35 15 L35 40 L15 85 Q12 95 22 95 L78 95 Q88 95 85 85 L65 40 L65 15" 
+                      fill="rgba(255,255,255,0.9)" stroke="white" stroke-width="3"/>
+                <!-- Flask neck -->
+                <rect x="32" y="8" width="36" height="12" rx="3" fill="white"/>
+                <!-- Liquid gradient -->
+                <path d="M20 75 Q25 65 35 70 Q50 78 65 68 Q75 62 80 75 L78 90 Q78 92 76 92 L24 92 Q22 92 22 90 Z" 
+                      fill="url(#liquidGrad)"/>
+                <!-- Bubbles -->
+                <circle cx="35" cy="78" r="4" fill="rgba(255,255,255,0.6)"/>
+                <circle cx="55" cy="82" r="3" fill="rgba(255,255,255,0.5)"/>
+                <circle cx="45" cy="72" r="2.5" fill="rgba(255,255,255,0.4)"/>
+                <circle cx="62" cy="76" r="2" fill="rgba(255,255,255,0.5)"/>
+                <!-- Peak lines (chromatogram) -->
+                <path d="M25 55 L35 55 L40 35 L45 50 L55 25 L60 50 L65 45 L75 55" 
+                      stroke="#FFD700" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs>
+                    <linearGradient id="liquidGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#34D399"/>
+                        <stop offset="100%" style="stop-color:#059669"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+        </div>
+        <div>
+            <h1 style="margin:0; font-size:1.8rem; font-weight:700;">FractoMap</h1>
+            <p style="margin:0; opacity:0.9; font-size:0.95rem;">Bioactivity-guided microfractionation analysis</p>
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
