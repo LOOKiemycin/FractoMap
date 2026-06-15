@@ -1,6 +1,6 @@
 """
 FractoMap - Bioactivity-Guided Microfractionation Analysis
-Single-file Streamlit App
+Styled Streamlit App
 """
 
 import streamlit as st
@@ -15,6 +15,100 @@ import xml.etree.ElementTree as ET
 
 # Page Config
 st.set_page_config(page_title="FractoMap", page_icon="🧪", layout="wide")
+
+# Custom CSS
+st.markdown("""
+<style>
+    /* Header banner */
+    .header-banner {
+        background: linear-gradient(135deg, #667eea 0%, #1DB984 100%);
+        padding: 2rem 2.5rem;
+        border-radius: 16px;
+        margin-bottom: 1.5rem;
+        color: white;
+    }
+    .header-banner h1 {
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem 0;
+    }
+    .header-banner p {
+        font-size: 1rem;
+        opacity: 0.95;
+        margin: 0;
+    }
+    
+    /* Card styling */
+    .upload-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+    .card-subtitle {
+        font-size: 0.9rem;
+        color: #6b7280;
+        margin-bottom: 1rem;
+    }
+    
+    /* Tags */
+    .tag {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-right: 6px;
+    }
+    .tag-teal { background: #d1fae5; color: #065f46; }
+    .tag-blue { background: #dbeafe; color: #1e40af; }
+    
+    /* Hide default streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {display: none;}
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 500;
+    }
+    
+    /* Metric cards */
+    .metric-row {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    .metric-card {
+        background: #f9fafb;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        flex: 1;
+    }
+    .metric-label {
+        font-size: 0.8rem;
+        color: #6b7280;
+        margin-bottom: 4px;
+    }
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #111827;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Constants
 ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
@@ -123,100 +217,169 @@ def generate_demo():
     return {'tic': tic, 'bpc': [(t, i*0.5) for t, i in tic]}
 
 def get_color(inh):
-    if inh > 75: return '#1D9E75'
-    elif inh > 50: return '#EF9F27'
-    elif inh > 25: return '#F5A623'
-    return '#E24B4A'
+    if inh > 75: return '#2E8B57'
+    elif inh > 50: return '#FFD700'
+    elif inh > 25: return '#FF8C00'
+    return '#DC143C'
 
 # Session State
 for k, v in [('plate', None), ('chrom', {'tic': [], 'bpc': []}), ('df', None), ('ctrl', None)]:
     if k not in st.session_state: st.session_state[k] = v
 
+# Header Banner
+st.markdown("""
+<div class="header-banner">
+    <h1>🧪 FractoMap</h1>
+    <p>Bioactivity-guided microfractionation analysis with LC-MS overlay</p>
+</div>
+""", unsafe_allow_html=True)
+
 # Sidebar
 with st.sidebar:
-    st.markdown("# 🧪 FractoMap")
-    st.markdown("---")
+    st.markdown("### ⚙️ Parameters")
     start = st.number_input("Collection start (min)", value=1.0, step=0.1)
     interval = st.number_input("Interval (sec)", value=7, step=1)
     offset = st.number_input("Fraction offset", value=-1, step=1)
     params = {'start': start, 'interval': interval, 'offset': offset}
+    
     st.markdown("---")
+    st.markdown("### 📖 About")
+    st.markdown("FractoMap overlays bioactivity data with LC-MS chromatograms for compound identification.")
     st.markdown("[GitHub](https://github.com/LOOKiemycin/FractoMap)")
 
-# Main
-st.title("🧪 FractoMap")
+# Main Tabs
 tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload", "🧫 Plate", "📊 Results", "📈 Overlay"])
 
+# Tab 1: Upload
 with tab1:
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("📋 Plate Data")
-        pf = st.file_uploader("Upload Excel (8×12)", type=['xlsx', 'xls', 'csv'])
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="upload-card">
+            <div class="card-title">📁 1. Plate Data (Excel)</div>
+            <div class="card-subtitle">96-well plate absorbance (8×12)</div>
+        </div>
+        """, unsafe_allow_html=True)
+        pf = st.file_uploader("Upload plate data", type=['xlsx', 'xls', 'csv'], label_visibility="collapsed")
         if pf:
             p = parse_plate_excel(pf)
-            if p: st.session_state.plate = p; st.success("✅ Loaded")
-            else: st.error("❌ Invalid format")
-    with c2:
-        st.subheader("📈 Chromatogram")
-        cf = st.file_uploader("Upload mzML/CSV", type=['mzML', 'mzml', 'csv'])
+            if p: 
+                st.session_state.plate = p
+                st.success("✅ Plate data loaded successfully")
+            else: 
+                st.error("❌ Invalid format - need 8×12 numeric data")
+    
+    with col2:
+        st.markdown("""
+        <div class="upload-card">
+            <div class="card-title">📈 2. MS Data (mzML or CSV)</div>
+            <div class="card-subtitle"><span class="tag tag-teal">TIC</span><span class="tag tag-blue">BPC</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+        cf = st.file_uploader("Upload chromatogram", type=['mzML', 'mzml', 'csv'], label_visibility="collapsed")
         if cf:
             if cf.name.lower().endswith('.mzml'):
                 st.session_state.chrom = parse_mzml(cf.read().decode('utf-8'))
             else:
                 d = pd.read_csv(cf)
                 st.session_state.chrom['tic'] = list(zip(d.iloc[:,0], d.iloc[:,1]))
-            st.success(f"✅ {len(st.session_state.chrom.get('tic',[]))} points")
-        if st.button("🎲 Demo Data"):
+            st.success(f"✅ Chromatogram loaded ({len(st.session_state.chrom.get('tic',[]))} points)")
+        
+        if st.button("🎲 Demo Data", use_container_width=True):
             st.session_state.chrom = generate_demo()
-            st.success("✅ Demo loaded")
+            st.success("✅ Demo chromatogram generated")
     
     st.markdown("---")
-    if st.button("🧮 Calculate", type="primary", use_container_width=True):
+    
+    if st.button("🧮 Calculate Inhibition", type="primary", use_container_width=True):
         if st.session_state.plate:
             df, ctrl = calculate_inhibition(st.session_state.plate, params)
             st.session_state.df, st.session_state.ctrl = df, ctrl
-            st.success("✅ Done!")
-            c1,c2,c3,c4 = st.columns(4)
-            c1.metric("Control", f"{ctrl:.4f}")
-            c2.metric("Max", f"{df['% Inhibition'].max():.1f}%")
-            c3.metric("Active", len(df[df['% Inhibition']>50]))
-            c4.metric("Best", f"F{df.loc[df['% Inhibition'].idxmax(),'Fraction']}")
-        else: st.error("❌ Upload plate first")
+            st.success("✅ Calculation complete!")
+            
+            # Metrics
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Control Avg", f"{ctrl:.4f}")
+            c2.metric("Max Inhibition", f"{df['% Inhibition'].max():.1f}%")
+            c3.metric("Active (>50%)", len(df[df['% Inhibition'] > 50]))
+            c4.metric("Best Fraction", f"F{df.loc[df['% Inhibition'].idxmax(), 'Fraction']}")
+        else:
+            st.error("❌ Please upload plate data first")
 
+# Tab 2: Plate
 with tab2:
+    st.markdown("### 🧫 96-Well Plate Heatmap")
     if st.session_state.plate:
-        fig = go.Figure(go.Heatmap(z=np.array(st.session_state.plate), x=list(range(1,13)), y=ROWS, colorscale='RdYlGn_r'))
-        fig.update_layout(title="Plate Heatmap", yaxis=dict(autorange='reversed'), height=350)
+        fig = go.Figure(go.Heatmap(
+            z=np.array(st.session_state.plate), 
+            x=list(range(1,13)), 
+            y=ROWS, 
+            colorscale='RdYlGn_r',
+            colorbar=dict(title="Abs")
+        ))
+        fig.update_layout(
+            yaxis=dict(autorange='reversed'), 
+            height=400,
+            xaxis_title="Column",
+            yaxis_title="Row"
+        )
         st.plotly_chart(fig, use_container_width=True)
-    else: st.warning("Upload plate first")
+        
+        st.info("🟢 Low absorbance = High inhibition | 🔴 High absorbance = Low inhibition")
+    else:
+        st.warning("⚠️ Upload plate data first")
 
+# Tab 3: Results
 with tab3:
+    st.markdown("### 📊 Inhibition Results")
     if st.session_state.df is not None:
         df = st.session_state.df
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric("Control", f"{st.session_state.ctrl:.4f}")
-        c2.metric("Max", f"{df['% Inhibition'].max():.1f}%")
-        c3.metric("Active", len(df[df['% Inhibition']>50]))
-        c4.metric("Best", f"F{df.loc[df['% Inhibition'].idxmax(),'Fraction']}")
         
-        fig = go.Figure(go.Bar(x=df['Fraction'], y=df['% Inhibition'], marker_color=[get_color(i) for i in df['% Inhibition']]))
-        fig.update_layout(yaxis_range=[0,100], height=300)
-        fig.add_hline(y=50, line_dash="dash")
+        # Metrics row
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Control Avg", f"{st.session_state.ctrl:.4f}")
+        c2.metric("Max Inhibition", f"{df['% Inhibition'].max():.1f}%")
+        c3.metric("Active (>50%)", len(df[df['% Inhibition'] > 50]))
+        c4.metric("Best Fraction", f"F{df.loc[df['% Inhibition'].idxmax(), 'Fraction']}")
+        
+        # Bar chart
+        fig = go.Figure(go.Bar(
+            x=df['Fraction'], 
+            y=df['% Inhibition'], 
+            marker_color=[get_color(i) for i in df['% Inhibition']]
+        ))
+        fig.update_layout(
+            yaxis_range=[0, 100], 
+            height=350,
+            xaxis_title="Fraction",
+            yaxis_title="% Inhibition"
+        )
+        fig.add_hline(y=50, line_dash="dash", line_color="crimson")
         st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(df, use_container_width=True, height=250)
-        st.download_button("📥 CSV", df.to_csv(index=False), "results.csv")
-    else: st.warning("Calculate first")
+        
+        # Data table
+        st.dataframe(df, use_container_width=True, height=300)
+        st.download_button("📥 Download CSV", df.to_csv(index=False), "fractomap_results.csv")
+    else:
+        st.warning("⚠️ Calculate inhibition first")
 
+# Tab 4: Overlay
 with tab4:
-    c1, c2, c3 = st.columns([1,1,2])
-    with c1: chrom_type = st.selectbox("Type", ["TIC", "BPC"])
-    with c2: bar_width = st.slider("Bar width", 0.05, 0.3, 0.12, 0.01)
+    st.markdown("### 📈 Bioactivity-Chromatogram Overlay")
+    
+    c1, c2, c3 = st.columns([1, 1, 2])
+    with c1: 
+        chrom_type = st.selectbox("Chromatogram", ["TIC", "BPC"])
+    with c2: 
+        bar_width = st.slider("Bar width", 0.05, 0.30, 0.12, 0.01)
     
     df, chrom = st.session_state.df, st.session_state.chrom.get(chrom_type.lower(), [])
+    
     if df is not None and chrom:
         fig = make_subplots(specs=[[{"secondary_y": True}]])
         
-        # TIC - light purple fill like reference
+        # TIC - light purple fill
         fig.add_trace(go.Scatter(
             x=[p[0] for p in chrom], y=[p[1] for p in chrom], 
             name=chrom_type, 
@@ -225,7 +388,7 @@ with tab4:
             fillcolor='rgba(180,180,220,0.4)'
         ), secondary_y=True)
         
-        # Separate traces for each activity level (for legend)
+        # Separate traces for each activity level
         for act, color, label in [
             ('Strong', '#2E8B57', 'Strong (>75%)'),
             ('Moderate', '#FFD700', 'Moderate (50-75%)'),
@@ -242,31 +405,40 @@ with tab4:
                 ), secondary_y=False)
         
         # 50% threshold line
-        fig.add_hline(y=50, line_dash="dash", line_color="crimson", line_width=1.5, 
-                      annotation_text="50%", annotation_position="right", secondary_y=False)
+        fig.add_hline(y=50, line_dash="dash", line_color="crimson", line_width=1.5, secondary_y=False)
         
         fig.update_layout(
-            title=dict(text=f"<b>Bioactivity Overlay with {chrom_type}</b><br><sup>Offset = {params['offset']} fraction (~{abs(params['offset'])*7} sec dead volume)</sup>", 
-                      x=0.5, xanchor='center'),
+            title=dict(
+                text=f"<b>Bioactivity Overlay with {chrom_type}</b><br><sup>Offset = {params['offset']} fraction (~{abs(params['offset'])*7} sec dead volume)</sup>", 
+                x=0.5, xanchor='center'
+            ),
             xaxis_title="Retention Time (min)",
-            height=550, bargap=0, barmode='overlay',
-            legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99, bgcolor='rgba(255,255,255,0.9)', 
-                       bordercolor='#ccc', borderwidth=1),
+            height=550, 
+            bargap=0, 
+            barmode='overlay',
+            legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99, bgcolor='rgba(255,255,255,0.9)', bordercolor='#ccc', borderwidth=1),
             plot_bgcolor='white'
         )
-        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#eee', zeroline=False)
-        fig.update_yaxes(title_text="% Inhibition (ABTS)", range=[0,105], showgrid=True, gridcolor='#eee', 
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#eee')
+        fig.update_yaxes(title_text="% Inhibition", range=[0, 105], showgrid=True, gridcolor='#eee', 
                         title_font=dict(color='#2E8B57'), tickfont=dict(color='#2E8B57'), secondary_y=False)
         fig.update_yaxes(title_text=f"{chrom_type} Intensity", showgrid=False,
                         title_font=dict(color='#6464B4'), tickfont=dict(color='#6464B4'), secondary_y=True)
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # Show active fractions
+        # Active fractions summary
         active = df[df['% Inhibition'] > 50]
         if len(active) > 0:
-            st.success(f"**Active fractions:** {', '.join([f'F{f}' for f in active['Fraction'].values])} (RT {active['RT (min)'].min():.2f}-{active['RT (min)'].max():.2f} min)")
-    else: st.warning("Upload data and calculate first")
+            st.success(f"**Active fractions:** {', '.join([f'F{f}' for f in active['Fraction'].values])} (RT {active['RT (min)'].min():.2f} - {active['RT (min)'].max():.2f} min)")
+    else:
+        st.warning("⚠️ Upload data and calculate inhibition first")
 
+# Footer
 st.markdown("---")
-st.markdown("**FractoMap** | [GitHub](https://github.com/LOOKiemycin/FractoMap)")
+st.markdown("""
+<div style="text-align: center; color: #6b7280; font-size: 0.9rem;">
+    <b>FractoMap</b> • Bioactivity-Guided Microfractionation Analysis<br>
+    Developed by Thapanee Pruksatrakul • <a href="https://github.com/LOOKiemycin/FractoMap">GitHub</a>
+</div>
+""", unsafe_allow_html=True)
