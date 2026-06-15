@@ -402,8 +402,82 @@ with tab1:
 
 # Tab 2: Plate
 with tab2:
-    st.markdown("### 🧫 96-Well Plate Heatmap")
-    if st.session_state.plate:
+    st.markdown("### 🧫 96-Well Plate View")
+    if st.session_state.plate and st.session_state.df is not None:
+        plate = st.session_state.plate
+        inhib_df = st.session_state.df
+        
+        # Create styled HTML table
+        html = """
+        <style>
+            .plate-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+            .plate-table th, .plate-table td { 
+                border: 1px solid #e5e7eb; 
+                padding: 8px 6px; 
+                text-align: center; 
+                min-width: 55px;
+            }
+            .plate-table th { background: #f9fafb; font-weight: 500; color: #6b7280; }
+            .plate-table .row-label { background: #f9fafb; font-weight: 500; color: #6b7280; }
+            .cell-control { background: #FEF3C7; }
+            .cell-active { background: #D1FAE5; }
+            .cell-inactive { background: #FEE2E2; }
+            .plate-legend { display: flex; gap: 24px; margin-top: 12px; font-size: 13px; }
+            .legend-item { display: flex; align-items: center; gap: 6px; }
+            .legend-box { width: 16px; height: 16px; border-radius: 3px; }
+        </style>
+        <table class="plate-table">
+            <tr><th></th>"""
+        
+        # Column headers
+        for c in range(1, 13):
+            html += f"<th>{c}</th>"
+        html += "</tr>"
+        
+        # Get inhibition lookup
+        inhib_lookup = {(row['Well']): row['% Inhibition'] for _, row in inhib_df.iterrows()}
+        
+        # Rows
+        for r, row_label in enumerate(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']):
+            html += f'<tr><td class="row-label">{row_label}</td>'
+            for c in range(12):
+                well = f"{row_label}{c+1}"
+                val = plate[r][c]
+                
+                # Determine cell class
+                # Control wells: F87-F96 (Row H, cols 3-12 based on serpentine)
+                frac_num = None
+                for f, info in SERPENTINE.items():
+                    if info['well'] == well:
+                        frac_num = f
+                        break
+                
+                if frac_num and frac_num >= 87:
+                    cell_class = "cell-control"
+                elif well in inhib_lookup and inhib_lookup[well] > 50:
+                    cell_class = "cell-active"
+                else:
+                    cell_class = "cell-inactive"
+                
+                html += f'<td class="{cell_class}">{val:.3f}</td>'
+            html += "</tr>"
+        
+        html += "</table>"
+        
+        # Legend
+        html += """
+        <div class="plate-legend">
+            <div class="legend-item"><div class="legend-box" style="background: #FEF3C7;"></div> Control (87-96)</div>
+            <div class="legend-item"><div class="legend-box" style="background: #D1FAE5;"></div> Active (>50%)</div>
+            <div class="legend-item"><div class="legend-box" style="background: #FEE2E2;"></div> Inactive</div>
+        </div>
+        """
+        
+        st.markdown(html, unsafe_allow_html=True)
+        
+    elif st.session_state.plate:
+        # Show basic heatmap if no inhibition calculated yet
+        st.info("💡 Calculate inhibition first to see activity highlighting")
         fig = go.Figure(go.Heatmap(
             z=np.array(st.session_state.plate), 
             x=list(range(1,13)), 
@@ -411,15 +485,8 @@ with tab2:
             colorscale='RdYlGn_r',
             colorbar=dict(title="Abs")
         ))
-        fig.update_layout(
-            yaxis=dict(autorange='reversed'), 
-            height=400,
-            xaxis_title="Column",
-            yaxis_title="Row"
-        )
+        fig.update_layout(yaxis=dict(autorange='reversed'), height=350)
         st.plotly_chart(fig, use_container_width=True)
-        
-        st.info("🟢 Low absorbance = High inhibition | 🔴 High absorbance = Low inhibition")
     else:
         st.warning("⚠️ Upload plate data first")
 
@@ -569,7 +636,7 @@ with tab4:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #6b7280; font-size: 0.9rem;">
-    <b>FractoMap</b> • Bioactivity-Guided Microfractionation Analysis<br>
-    Developed by Thapanee Pruksatrakul • <a href="https://github.com/LOOKiemycin/FractoMap">GitHub</a>
+    <b>FractoMap</b> — Bioactivity-Guided Microfractionation Analysis<br>
+    Thapanee Pruksatrakul • Functional Metabolomics Lab, UC Riverside
 </div>
 """, unsafe_allow_html=True)
