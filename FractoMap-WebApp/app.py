@@ -223,8 +223,55 @@ def get_color(inh):
     return '#DC143C'
 
 # Session State
-for k, v in [('plate', None), ('chrom', {'tic': [], 'bpc': []}), ('df', None), ('ctrl', None)]:
+for k, v in [('plate', None), ('chrom', {'tic': [], 'bpc': []}), ('df', None), ('ctrl', None), ('gnps', None)]:
     if k not in st.session_state: st.session_state[k] = v
+
+def parse_gnps_excel(file):
+    """Parse GNPS2 annotation Excel file"""
+    try:
+        df = pd.read_excel(file) if file.name.endswith(('.xlsx', '.xls')) else pd.read_csv(file)
+        
+        # Find RT column
+        rt_cols = [c for c in df.columns if any(x in c.lower() for x in ['rt', 'retention', 'time'])]
+        rt_col = rt_cols[0] if rt_cols else None
+        
+        # Find compound name column
+        name_cols = [c for c in df.columns if any(x in c.lower() for x in ['compound', 'name', 'library', 'annotation'])]
+        name_col = name_cols[0] if name_cols else None
+        
+        # Find m/z column
+        mz_cols = [c for c in df.columns if any(x in c.lower() for x in ['mz', 'mass', 'precursor'])]
+        mz_col = mz_cols[0] if mz_cols else None
+        
+        # Find score column
+        score_cols = [c for c in df.columns if any(x in c.lower() for x in ['score', 'cosine', 'mq'])]
+        score_col = score_cols[0] if score_cols else None
+        
+        if not rt_col or not name_col:
+            st.error(f"Cannot find RT or Compound columns. Found: {list(df.columns)[:10]}")
+            return None
+        
+        results = []
+        for _, row in df.iterrows():
+            rt = row[rt_col]
+            name = row[name_col]
+            if pd.notna(rt) and pd.notna(name) and str(name).strip():
+                # Convert RT to minutes if in seconds
+                rt_val = float(rt)
+                if rt_val > 100:  # likely in seconds
+                    rt_val = rt_val / 60
+                
+                results.append({
+                    'RT': rt_val,
+                    'Compound': str(name).strip(),
+                    'mz': float(row[mz_col]) if mz_col and pd.notna(row[mz_col]) else None,
+                    'Score': float(row[score_col]) if score_col and pd.notna(row[score_col]) else None
+                })
+        
+        return pd.DataFrame(results) if results else None
+    except Exception as e:
+        st.error(f"Error parsing GNPS file: {e}")
+        return None
 
 # Header Banner with custom icon
 st.markdown("""
@@ -282,7 +329,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["📤 Upload", "🧫 Plate", "📊 Results", "
 
 # Tab 1: Upload
 with tab1:
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("""
@@ -296,14 +343,14 @@ with tab1:
             p = parse_plate_excel(pf)
             if p: 
                 st.session_state.plate = p
-                st.success("✅ Plate data loaded successfully")
+                st.success("✅ Plate data loaded")
             else: 
-                st.error("❌ Invalid format - need 8×12 numeric data")
+                st.error("❌ Invalid format")
     
     with col2:
         st.markdown("""
         <div class="upload-card">
-            <div class="card-title">📈 2. MS Data (mzML or CSV)</div>
+            <div class="card-title">📈 2. MS Data (mzML/CSV)</div>
             <div class="card-subtitle"><span class="tag tag-teal">TIC</span><span class="tag tag-blue">BPC</span></div>
         </div>
         """, unsafe_allow_html=True)
@@ -314,11 +361,27 @@ with tab1:
             else:
                 d = pd.read_csv(cf)
                 st.session_state.chrom['tic'] = list(zip(d.iloc[:,0], d.iloc[:,1]))
-            st.success(f"✅ Chromatogram loaded ({len(st.session_state.chrom.get('tic',[]))} points)")
+            st.success(f"✅ Chromatogram loaded")
         
         if st.button("🎲 Demo Data", use_container_width=True):
             st.session_state.chrom = generate_demo()
-            st.success("✅ Demo chromatogram generated")
+            st.success("✅ Demo loaded")
+    
+    with col3:
+        st.markdown("""
+        <div class="upload-card">
+            <div class="card-title">🏷️ 3. GNPS2 Annotation</div>
+            <div class="card-subtitle">Compound IDs (optional)</div>
+        </div>
+        """, unsafe_allow_html=True)
+        gf = st.file_uploader("Upload GNPS2 results", type=['xlsx', 'xls', 'csv', 'tsv'], label_visibility="collapsed", key="gnps_upload")
+        if gf:
+            gnps_df = parse_gnps_excel(gf)
+            if gnps_df is not None:
+                st.session_state.gnps = gnps_df
+                st.success(f"✅ {len(gnps_df)} annotations loaded")
+            else:
+                st.error("❌ Cannot parse GNPS file")
     
     st.markdown("---")
     
@@ -405,6 +468,7 @@ with tab4:
         bar_width = st.slider("Bar width", 0.05, 0.30, 0.12, 0.01)
     
     df, chrom = st.session_state.df, st.session_state.chrom.get(chrom_type.lower(), [])
+    gnps_df = st.session_state.gnps
     
     if df is not None and chrom:
         fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -434,6 +498,36 @@ with tab4:
                     textposition='outside', textfont=dict(size=9, color='#333')
                 ), secondary_y=False)
         
+        # Add GNPS compound labels
+        if gnps_df is not None and len(gnps_df) > 0:
+            # Get max intensity for positioning
+            max_int = max([p[1] for p in chrom]) if chrom else 1
+            
+            for _, row in gnps_df.iterrows():
+                rt = row['RT']
+                name = row['Compound']
+                # Shorten long names
+                if len(name) > 20:
+                    name = name[:18] + "..."
+                
+                # Add annotation
+                fig.add_annotation(
+                    x=rt, y=max_int * 0.95,
+                    text=f"<b>{name}</b>",
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=0.8,
+                    arrowwidth=1,
+                    arrowcolor="#6366F1",
+                    ax=0, ay=-30,
+                    font=dict(size=10, color="#4F46E5"),
+                    bgcolor="rgba(255,255,255,0.9)",
+                    bordercolor="#6366F1",
+                    borderwidth=1,
+                    borderpad=3,
+                    xref="x", yref="y2"
+                )
+        
         # 50% threshold line
         fig.add_hline(y=50, line_dash="dash", line_color="crimson", line_width=1.5, secondary_y=False)
         
@@ -443,7 +537,7 @@ with tab4:
                 x=0.5, xanchor='center'
             ),
             xaxis_title="Retention Time (min)",
-            height=550, 
+            height=600, 
             bargap=0, 
             barmode='overlay',
             legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99, bgcolor='rgba(255,255,255,0.9)', bordercolor='#ccc', borderwidth=1),
@@ -461,6 +555,13 @@ with tab4:
         active = df[df['% Inhibition'] > 50]
         if len(active) > 0:
             st.success(f"**Active fractions:** {', '.join([f'F{f}' for f in active['Fraction'].values])} (RT {active['RT (min)'].min():.2f} - {active['RT (min)'].max():.2f} min)")
+        
+        # Show GNPS annotations in active region
+        if gnps_df is not None and len(active) > 0:
+            rt_min, rt_max = active['RT (min)'].min() - 0.5, active['RT (min)'].max() + 0.5
+            active_compounds = gnps_df[(gnps_df['RT'] >= rt_min) & (gnps_df['RT'] <= rt_max)]
+            if len(active_compounds) > 0:
+                st.info(f"**🏷️ Compounds in active region:** {', '.join(active_compounds['Compound'].tolist())}")
     else:
         st.warning("⚠️ Upload data and calculate inhibition first")
 
