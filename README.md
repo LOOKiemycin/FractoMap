@@ -139,15 +139,15 @@ Row H: 96 ← 95 ← 94 ← 93 ← 92 ← 91 ← 90 ← 89 ← 88 ← 87 ← 86 
 ## 🔬 Workflow
 
 ```
-┌─────────────────┐     ┌─────────────────┐
-│  LC-MS/MS with  │     │   96-well plate │
-│ microfractionation│   │  bioassay       │
-│     (mzML)      │     │  (ABTS/DPPH)    │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         ▼                       ▼
+┌─────────────────────┐     ┌─────────────────┐
+│    LC-MS/MS with    │     │   96-well plate │
+│  microfractionation │     │   bioassay      │
+│       (mzML)        │     │  (ABTS/DPPH)    │
+└─────────┬───────────┘     └────────┬────────┘
+          │                          │
+          ▼                          ▼
 ┌─────────────────────────────────────────┐
-│            FractoMap                    │
+│               FractoMap                 │
 │   Bioactivity-Chromatogram Overlay      │
 └────────────────────┬────────────────────┘
                      │
