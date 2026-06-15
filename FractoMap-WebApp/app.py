@@ -22,7 +22,7 @@ st.markdown("""
     /* Header banner */
     .header-banner {
         background: linear-gradient(135deg, #667eea 0%, #1DB984 100%);
-        padding: 2rem 2.5rem;
+        padding: 1.2rem 2rem;
         border-radius: 16px;
         margin-bottom: 1.5rem;
         color: white;
