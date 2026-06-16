@@ -614,35 +614,44 @@ with tab4:
                     textposition='outside', textfont=dict(size=9, color='#333')
                 ), secondary_y=False)
         
-        # Add GNPS compound labels
+        # Add GNPS compound labels - ONLY at active positions
         if gnps_df is not None and len(gnps_df) > 0:
-            # Get max intensity for positioning
-            max_int = max([p[1] for p in chrom]) if chrom else 1
-            
-            for _, row in gnps_df.iterrows():
-                rt = row['RT']
-                name = row['Compound']
-                # Shorten long names
-                if len(name) > 20:
-                    name = name[:18] + "..."
+            # Get active RT range
+            active = df[df['% Inhibition'] > 50]
+            if len(active) > 0:
+                rt_min = active['RT (min)'].min() - 0.3
+                rt_max = active['RT (min)'].max() + 0.3
                 
-                # Add annotation
-                fig.add_annotation(
-                    x=rt, y=max_int * 0.95,
-                    text=f"<b>{name}</b>",
-                    showarrow=True,
-                    arrowhead=2,
-                    arrowsize=0.8,
-                    arrowwidth=1,
-                    arrowcolor="#6366F1",
-                    ax=0, ay=-30,
-                    font=dict(size=10, color="#4F46E5"),
-                    bgcolor="rgba(255,255,255,0.9)",
-                    bordercolor="#6366F1",
-                    borderwidth=1,
-                    borderpad=3,
-                    xref="x", yref="y2"
-                )
+                # Filter GNPS compounds in active region
+                active_compounds = gnps_df[(gnps_df['RT'] >= rt_min) & (gnps_df['RT'] <= rt_max)]
+                
+                # Get max intensity for positioning
+                max_int = max([p[1] for p in chrom]) if chrom else 1
+                
+                # Add annotations only for active compounds
+                for i, (_, row) in enumerate(active_compounds.iterrows()):
+                    rt = row['RT']
+                    name = row['Compound']
+                    
+                    # Offset y position to avoid overlap
+                    y_offset = 0.92 - (i * 0.08)
+                    
+                    fig.add_annotation(
+                        x=rt, y=max_int * y_offset,
+                        text=f"<b>{name}</b>",
+                        showarrow=True,
+                        arrowhead=2,
+                        arrowsize=0.8,
+                        arrowwidth=1.5,
+                        arrowcolor="#059669",
+                        ax=0, ay=-25,
+                        font=dict(size=11, color="#065F46"),
+                        bgcolor="rgba(209,250,229,0.95)",
+                        bordercolor="#059669",
+                        borderwidth=1,
+                        borderpad=4,
+                        xref="x", yref="y2"
+                    )
         
         # 50% threshold line
         fig.add_hline(y=50, line_dash="dash", line_color="crimson", line_width=1.5, secondary_y=False)
