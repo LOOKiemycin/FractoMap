@@ -550,7 +550,24 @@ with tab2:
 with tab3:
     st.markdown("### 📊 Inhibition Results")
     if st.session_state.df is not None:
-        df = st.session_state.df
+        df = st.session_state.df.copy()
+        gnps_df = st.session_state.gnps
+        
+        # Add Compound column from GNPS data
+        if gnps_df is not None and len(gnps_df) > 0:
+            def find_compound(rt, inhibition):
+                if inhibition < 50:
+                    return ""
+                # Find closest GNPS compound within 0.5 min
+                for _, gnps_row in gnps_df.iterrows():
+                    if abs(gnps_row['RT'] - rt) < 0.5:
+                        score = gnps_row.get('Score', 0)
+                        if score and pd.notna(score):
+                            return f"{gnps_row['Compound']} ({score:.2f})"
+                        return gnps_row['Compound']
+                return ""
+            
+            df['Compound'] = df.apply(lambda row: find_compound(row['RT (min)'], row['% Inhibition']), axis=1)
         
         # Metrics row
         c1, c2, c3, c4 = st.columns(4)
@@ -574,8 +591,13 @@ with tab3:
         fig.add_hline(y=50, line_dash="dash", line_color="crimson")
         st.plotly_chart(fig, use_container_width=True)
         
-        # Data table
-        st.dataframe(df, use_container_width=True, height=300)
+        # Data table - show Compound column if available
+        if 'Compound' in df.columns:
+            display_cols = ['Fraction', 'Well', 'RT (min)', 'Absorbance', '% Inhibition', 'Activity', 'Compound']
+        else:
+            display_cols = ['Fraction', 'Well', 'RT (min)', 'Absorbance', '% Inhibition', 'Activity']
+        
+        st.dataframe(df[display_cols], use_container_width=True, height=300)
         st.download_button("📥 Download CSV", df.to_csv(index=False), "fractomap_results.csv")
     else:
         st.warning("⚠️ Calculate inhibition first")
