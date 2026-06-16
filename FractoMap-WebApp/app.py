@@ -429,6 +429,16 @@ with st.sidebar:
     offset = st.number_input("Fraction offset", value=-1, step=1)
     params = {'start': start, 'interval': interval, 'offset': offset}
     
+    # Update button
+    if st.button("🔄 Update", use_container_width=True, type="primary"):
+        if st.session_state.plate:
+            df, ctrl = calculate_inhibition(st.session_state.plate, params)
+            st.session_state.df, st.session_state.ctrl = df, ctrl
+            st.success("✅ Updated!")
+            st.rerun()
+        else:
+            st.warning("⚠️ Load data first")
+    
     st.markdown("---")
     st.markdown("### 📖 About")
     st.markdown("FractoMap overlays bioactivity data with LC-MS chromatograms for compound identification.")
@@ -502,101 +512,27 @@ with tab1:
             st.rerun()
     
     with demo_col2:
-        with st.expander("📥 Download Example Files & Format Guide"):
+        with st.expander("📖 File Format Guide"):
             st.markdown("""
-            ### 📁 1. Plate Data Format (Excel/CSV)
-            **8 rows × 12 columns** of absorbance values (no headers needed)
+            ### 📁 1. Plate Data (Excel/CSV)
+            **8 rows × 12 columns** of absorbance values
+            - Row H (wells 87-96) = Control wells
+            - Low absorbance = High activity
             
-            | | 1 | 2 | 3 | ... | 12 |
-            |---|---|---|---|---|---|
-            | A | 0.765 | 0.767 | 0.768 | ... | 0.769 |
-            | B | 0.738 | 0.731 | 0.745 | ... | 0.769 |
-            | ... | ... | ... | ... | ... | ... |
-            | H | 0.778 | 0.779 | 0.778 | ... | 0.746 |
+            ### 📈 2. MS Data (mzML/CSV)
+            - **mzML:** Standard format with TIC/BPC
+            - **CSV:** Two columns (RT, Intensity)
             
-            - **Row H (wells 87-96)** = Control wells
-            - **Low absorbance** = High antioxidant activity
-            
-            ---
-            
-            ### 📈 2. MS Data Format (mzML or CSV)
-            
-            **mzML:** Standard mass spectrometry format with TIC/BPC chromatograms
-            
-            **CSV alternative:**
-            | RT (min) | Intensity |
-            |----------|-----------|
-            | 0.00 | 5963696 |
-            | 0.07 | 5681892 |
-            | ... | ... |
+            ### 🏷️ 3. GNPS2 Annotation (TSV)
+            Required columns:
+            - `Compound_Name` - Compound ID
+            - `RT_Query` or `#Scan#` - Retention time
+            - `MQScore` - Cosine score
+            - `SpecMZ` - m/z value
             
             ---
-            
-            ### 🏷️ 3. GNPS2 Annotation Format (TSV/CSV)
-            
-            Export from GNPS2 molecular networking with these columns:
-            
-            | Required Column | Description |
-            |-----------------|-------------|
-            | `Compound_Name` | Compound identification |
-            | `RT_Query` or `#Scan#` | Retention time or scan number |
-            | `MQScore` | Cosine similarity score |
-            | `SpecMZ` or `Precursor_MZ` | m/z value |
+            📥 **[Download example files on GitHub](https://github.com/LOOKiemycin/FractoMap/tree/main/examples)**
             """)
-            
-            # Create downloadable example files
-            st.markdown("#### 📥 Download Example Files")
-            
-            # Example plate CSV
-            plate_rows = [
-                "0.765,0.767,0.768,0.761,0.760,0.755,0.750,0.770,0.767,0.765,0.767,0.769",
-                "0.738,0.731,0.745,0.762,0.760,0.756,0.756,0.770,0.774,0.766,0.765,0.769",
-                "0.739,0.735,0.740,0.729,0.723,0.727,0.739,0.737,0.731,0.715,0.690,0.646",
-                "0.648,0.598,0.547,0.487,0.354,0.185,0.193,0.251,0.346,0.526,0.600,0.627",
-                "0.636,0.673,0.691,0.726,0.735,0.736,0.750,0.758,0.757,0.757,0.751,0.765",
-                "0.758,0.763,0.768,0.768,0.769,0.766,0.767,0.766,0.762,0.765,0.751,0.769",
-                "0.760,0.760,0.767,0.771,0.772,0.766,0.765,0.771,0.764,0.777,0.766,0.772",
-                "0.778,0.779,0.778,0.777,0.775,0.776,0.771,0.777,0.776,0.773,0.764,0.746"
-            ]
-            plate_example = "\n".join(plate_rows)
-            
-            st.download_button(
-                "📥 Example Plate (CSV)",
-                plate_example,
-                "example_plate.csv",
-                "text/csv"
-            )
-            
-            # Example GNPS TSV
-            gnps_rows = [
-                "Compound_Name\tRT_Query\tMQScore\tSpecMZ",
-                "Quercetin-3-O-glucoside\t5.6\t0.945\t463.089",
-                "Spiraeoside\t5.8\t0.899\t463.088",
-                "kaempferol\t6.1\t0.885\t285.040",
-                "RUTIN\t5.5\t0.870\t609.146",
-                "Isorhamnetin\t5.9\t0.823\t315.051"
-            ]
-            gnps_example = "\n".join(gnps_rows)
-            
-            st.download_button(
-                "📥 Example GNPS (TSV)",
-                gnps_example,
-                "example_gnps.tsv",
-                "text/tab-separated-values"
-            )
-            
-            # Example chromatogram CSV
-            chrom_rows = ["RT,Intensity"]
-            for rt, intensity in generate_demo()['tic'][:50]:
-                chrom_rows.append(f"{rt},{intensity}")
-            chrom_example = "\n".join(chrom_rows)
-            
-            st.download_button(
-                "📥 Example Chromatogram (CSV)",
-                chrom_example,
-                "example_chromatogram.csv",
-                "text/csv"
-            )
     
     st.markdown("---")
     
