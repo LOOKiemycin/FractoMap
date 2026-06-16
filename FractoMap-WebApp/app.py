@@ -692,7 +692,20 @@ with tab3:
         else:
             display_cols = ['Fraction', 'Well', 'RT (min)', 'Absorbance', '% Inhibition', 'Activity']
         
-        st.dataframe(df[display_cols], use_container_width=True, height=300)
+        # Color styling function
+        def highlight_activity(row):
+            activity = row['Activity']
+            if activity == 'Strong':
+                return ['background-color: #d4edda; color: #155724'] * len(row)  # Green
+            elif activity == 'Moderate':
+                return ['background-color: #fff3cd; color: #856404'] * len(row)  # Yellow
+            elif activity == 'Weak':
+                return ['background-color: #ffe5d0; color: #8a4100'] * len(row)  # Orange
+            else:
+                return [''] * len(row)  # No color for Inactive
+        
+        styled_df = df[display_cols].style.apply(highlight_activity, axis=1)
+        st.dataframe(styled_df, use_container_width=True, height=300)
         st.download_button("📥 Download CSV", df.to_csv(index=False), "fractomap_results.csv")
     else:
         st.warning("⚠️ Calculate inhibition first")
