@@ -227,48 +227,97 @@ for k, v in [('plate', None), ('chrom', {'tic': [], 'bpc': []}), ('df', None), (
     if k not in st.session_state: st.session_state[k] = v
 
 def parse_gnps_excel(file):
-    """Parse GNPS2 annotation Excel file"""
+    """Parse GNPS2 annotation Excel/TSV file"""
     try:
-        df = pd.read_excel(file) if file.name.endswith(('.xlsx', '.xls')) else pd.read_csv(file)
+        # Detect file type and read
+        filename = file.name.lower()
+        if filename.endswith('.tsv'):
+            # Use python engine for better compatibility
+            df = pd.read_csv(file, sep='\t', engine='python', on_bad_lines='skip')
+        elif filename.endswith('.csv'):
+            df = pd.read_csv(file, engine='python', on_bad_lines='skip')
+        else:
+            df = pd.read_excel(file)
         
-        # Find RT column
-        rt_cols = [c for c in df.columns if any(x in c.lower() for x in ['rt', 'retention', 'time'])]
-        rt_col = rt_cols[0] if rt_cols else None
+        st.info(f"📄 Loaded {len(df)} annotations, {len(df.columns)} columns")
+        
+        # Find RT column (GNPS uses RT_Query)
+        rt_col = None
+        for c in df.columns:
+            if c.lower() in ['rt_query', 'rt', 'rtmean', 'retention_time', 'precursor_rt']:
+                rt_col = c
+                break
+        
+        # Find scan column as backup
+        scan_col = None
+        for c in df.columns:
+            if '#scan#' in c.lower() or 'scan' in c.lower():
+                scan_col = c
+                break
         
         # Find compound name column
-        name_cols = [c for c in df.columns if any(x in c.lower() for x in ['compound', 'name', 'library', 'annotation'])]
-        name_col = name_cols[0] if name_cols else None
+        name_col = None
+        for c in df.columns:
+            if c.lower() in ['compound_name', 'compoundname', 'libraryname']:
+                name_col = c
+                break
         
         # Find m/z column
-        mz_cols = [c for c in df.columns if any(x in c.lower() for x in ['mz', 'mass', 'precursor'])]
-        mz_col = mz_cols[0] if mz_cols else None
+        mz_col = None
+        for c in df.columns:
+            if c.lower() in ['specmz', 'precursor_mz', 'precursormz', 'mz']:
+                mz_col = c
+                break
         
         # Find score column
-        score_cols = [c for c in df.columns if any(x in c.lower() for x in ['score', 'cosine', 'mq'])]
-        score_col = score_cols[0] if score_cols else None
+        score_col = None
+        for c in df.columns:
+            if c.lower() in ['mqscore', 'cosine', 'score']:
+                score_col = c
+                break
         
-        if not rt_col or not name_col:
-            st.error(f"Cannot find RT or Compound columns. Found: {list(df.columns)[:10]}")
+        if not name_col:
+            st.error(f"Cannot find Compound_Name column. Found: {list(df.columns)[:10]}")
             return None
+        
+        # Check if RT values are valid (not all 0)
+        use_scan = False
+        if rt_col and df[rt_col].nunique() == 1 and df[rt_col].iloc[0] == 0:
+            st.warning(f"⚠️ RT_Query is all 0. Using Scan# for positioning.")
+            use_scan = True
         
         results = []
         for _, row in df.iterrows():
-            rt = row[rt_col]
             name = row[name_col]
-            if pd.notna(rt) and pd.notna(name) and str(name).strip():
-                # Convert RT to minutes if in seconds
-                rt_val = float(rt)
-                if rt_val > 100:  # likely in seconds
-                    rt_val = rt_val / 60
+            if pd.notna(name) and str(name).strip():
+                # Get RT or calculate from scan
+                if use_scan and scan_col:
+                    scan = row[scan_col]
+                    # Estimate RT from scan (will need user to adjust offset)
+                    rt_val = float(scan) * 0.1  # rough estimate, 0.1 min per scan
+                elif rt_col:
+                    rt_val = float(row[rt_col]) if pd.notna(row[rt_col]) else 0
+                    if rt_val > 100:  # likely in seconds
+                        rt_val = rt_val / 60
+                else:
+                    rt_val = 0
                 
                 results.append({
                     'RT': rt_val,
-                    'Compound': str(name).strip(),
-                    'mz': float(row[mz_col]) if mz_col and pd.notna(row[mz_col]) else None,
-                    'Score': float(row[score_col]) if score_col and pd.notna(row[score_col]) else None
+                    'Compound': str(name).strip()[:40],  # Truncate long names
+                    'mz': float(row[mz_col]) if mz_col and pd.notna(row.get(mz_col)) else None,
+                    'Score': float(row[score_col]) if score_col and pd.notna(row.get(score_col)) else None,
+                    'Scan': int(row[scan_col]) if scan_col and pd.notna(row.get(scan_col)) else None
                 })
         
-        return pd.DataFrame(results) if results else None
+        # Remove duplicates (keep highest score)
+        if results:
+            results_df = pd.DataFrame(results)
+            if 'Score' in results_df.columns:
+                results_df = results_df.sort_values('Score', ascending=False).drop_duplicates(subset=['Compound'], keep='first')
+            st.success(f"✅ {len(results_df)} unique compounds loaded")
+            return results_df
+        return None
     except Exception as e:
         st.error(f"Error parsing GNPS file: {e}")
         return None
@@ -374,7 +423,7 @@ with tab1:
             <div class="card-subtitle">Compound IDs (optional)</div>
         </div>
         """, unsafe_allow_html=True)
-        gf = st.file_uploader("Upload GNPS2 results", type=['xlsx', 'xls', 'csv', 'tsv'], label_visibility="collapsed", key="gnps_upload")
+        gf = st.file_uploader("Upload GNPS2 results", type=['xlsx', 'xls', 'csv', 'tsv', 'txt'], label_visibility="collapsed", key="gnps_upload")
         if gf:
             gnps_df = parse_gnps_excel(gf)
             if gnps_df is not None:
