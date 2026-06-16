@@ -255,12 +255,19 @@ def parse_gnps_excel(file):
                 scan_col = c
                 break
         
-        # Find compound name column
+        # Find compound name column - prioritize Compound_Name over LibraryName
         name_col = None
-        for c in df.columns:
-            if c.lower() in ['compound_name', 'compoundname', 'libraryname']:
-                name_col = c
-                break
+        # First try exact Compound_Name
+        if 'Compound_Name' in df.columns:
+            name_col = 'Compound_Name'
+        elif 'compound_name' in df.columns:
+            name_col = 'compound_name'
+        else:
+            # Fallback to other name columns
+            for c in df.columns:
+                if c.lower() in ['compoundname', 'name', 'annotation']:
+                    name_col = c
+                    break
         
         # Find m/z column
         mz_col = None
@@ -632,24 +639,31 @@ with tab4:
                 for i, (_, row) in enumerate(active_compounds.iterrows()):
                     rt = row['RT']
                     name = row['Compound']
+                    score = row.get('Score')
+                    
+                    # Format label with score
+                    if score and pd.notna(score):
+                        label = f"<b>{name}</b><br><i>Cosine: {score:.3f}</i>"
+                    else:
+                        label = f"<b>{name}</b>"
                     
                     # Offset y position to avoid overlap
-                    y_offset = 0.92 - (i * 0.08)
+                    y_offset = 0.92 - (i * 0.12)
                     
                     fig.add_annotation(
                         x=rt, y=max_int * y_offset,
-                        text=f"<b>{name}</b>",
+                        text=label,
                         showarrow=True,
                         arrowhead=2,
                         arrowsize=0.8,
                         arrowwidth=1.5,
                         arrowcolor="#059669",
-                        ax=0, ay=-25,
-                        font=dict(size=11, color="#065F46"),
+                        ax=0, ay=-30,
+                        font=dict(size=10, color="#065F46"),
                         bgcolor="rgba(209,250,229,0.95)",
                         bordercolor="#059669",
                         borderwidth=1,
-                        borderpad=4,
+                        borderpad=5,
                         xref="x", yref="y2"
                     )
         
