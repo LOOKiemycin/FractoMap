@@ -502,37 +502,12 @@ with tab1:
     st.markdown("---")
     
     # Single Demo Data button
-    demo_col1, demo_col2 = st.columns([1, 2])
-    with demo_col1:
-        if st.button("🎲 Load Demo Data (Quercetin Standard)", use_container_width=True, type="secondary"):
-            st.session_state.plate = generate_demo_plate()
-            st.session_state.chrom = generate_demo()
-            st.session_state.gnps = generate_demo_gnps()
-            st.success("✅ Demo data loaded: Plate + Chromatogram + GNPS annotations")
-            st.rerun()
-    
-    with demo_col2:
-        with st.expander("📖 File Format Guide"):
-            st.markdown("""
-            ### 📁 1. Plate Data (Excel/CSV)
-            **8 rows × 12 columns** of absorbance values
-            - Row H (wells 87-96) = Control wells
-            - Low absorbance = High activity
-            
-            ### 📈 2. MS Data (mzML/CSV)
-            - **mzML:** Standard format with TIC/BPC
-            - **CSV:** Two columns (RT, Intensity)
-            
-            ### 🏷️ 3. GNPS2 Annotation (TSV)
-            Required columns:
-            - `Compound_Name` - Compound ID
-            - `RT_Query` or `#Scan#` - Retention time
-            - `MQScore` - Cosine score
-            - `SpecMZ` - m/z value
-            
-            ---
-            📥 **[Download example files on GitHub](https://github.com/LOOKiemycin/FractoMap/tree/main/examples)**
-            """)
+    if st.button("🎲 Load Demo Data (Quercetin Standard)", use_container_width=True, type="secondary"):
+        st.session_state.plate = generate_demo_plate()
+        st.session_state.chrom = generate_demo()
+        st.session_state.gnps = generate_demo_gnps()
+        st.success("✅ Demo data loaded: Plate + Chromatogram + GNPS annotations")
+        st.rerun()
     
     st.markdown("---")
     
